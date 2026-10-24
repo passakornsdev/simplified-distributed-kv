@@ -16,7 +16,7 @@ public class KeyValueStore {
 		if (value == null) {
 			throw new KeyNotFoundException(key);
 		}
-		return value.value();
+		return value.getValue();
 	}
 
 	public String put(final String key, final String value) {

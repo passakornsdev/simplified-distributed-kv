@@ -1,4 +1,15 @@
 package edu.uw.tcss5622.distributed_store.api;
 
-public record ReplicaWrite(String value, Long timestamp, String origin) {
+import lombok.AllArgsConstructor;
+import lombok.Data;
+import lombok.NoArgsConstructor;
+
+@Data
+@NoArgsConstructor
+@AllArgsConstructor
+public class ReplicaWrite {
+
+	private String value;
+	private Long timestamp;
+	private String origin;
 }
