@@ -1,0 +1,207 @@
+openapi: 3.1.1
+info:
+  title: Distributed Key-Value Store API
+  version: 0.1.0
+  description: |
+    Public API for the simplified distributed key-value store. Its GET and PUT
+    contract matches the monolith so clients can use either implementation.
+
+    The initial implementation stores values in memory. The 503 responses describe
+    the target distributed behavior when a read or write quorum cannot be reached.
+
+    Endpoints under /internal are node-to-node APIs. They must not be exposed through
+    the client load balancer.
+servers:
+  - url: http://localhost:8080
+    description: Local development server
+paths:
+  /kv/{key}:
+    parameters:
+      - $ref: '#/components/parameters/Key'
+    put:
+      operationId: putValue
+      summary: Store a value
+      description: |
+        Stores a plain-text value under the supplied key. A request for an existing
+        key replaces its value.
+      requestBody:
+        required: true
+        content:
+          text/plain:
+            schema:
+              $ref: '#/components/schemas/NonBlankString'
+      responses:
+        '200':
+          description: Value stored successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/KeyValue'
+              example:
+                key: greeting
+                value: hello
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '503':
+          description: |
+            The target distributed implementation could not reach a write quorum.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+              example:
+                error: Write quorum could not be reached.
+    get:
+      operationId: getValue
+      summary: Retrieve a value
+      responses:
+        '200':
+          description: Value found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/KeyValue'
+              example:
+                key: greeting
+                value: hello
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '404':
+          description: No value is stored for the key
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+              example:
+                error: No value is stored for key 'greeting'.
+        '503':
+          description: |
+            The target distributed implementation could not reach a read quorum.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+              example:
+                error: Read quorum could not be reached.
+  /internal/kv/{key}:
+    parameters:
+      - $ref: '#/components/parameters/Key'
+    put:
+      tags:
+        - Internal
+      operationId: putReplica
+      summary: Store a replica
+      description: |
+        Internal-only endpoint used by a coordinator to write a versioned replica.
+        A replica accepts the value only when its timestamp is newer than the
+        stored timestamp; equal timestamps are ordered by origin node ID.
+      x-internal: true
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ReplicaWrite'
+      responses:
+        '200':
+          description: Replica write accepted
+        '400':
+          $ref: '#/components/responses/BadRequest'
+    get:
+      tags:
+        - Internal
+      operationId: getReplica
+      summary: Retrieve a replica
+      description: Internal-only endpoint used by a coordinator to read a replica.
+      x-internal: true
+      responses:
+        '200':
+          description: Replica found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ReplicaValue'
+              example:
+                value: hello
+                timestamp: 1771880400000
+                origin: node1
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '404':
+          description: No replica is stored for the key
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+              example:
+                error: No value is stored for key 'greeting'.
+  /internal/health:
+    get:
+      tags:
+        - Internal
+      operationId: getHealth
+      summary: Check node liveness
+      description: Internal-only liveness probe for another cluster node.
+      x-internal: true
+      responses:
+        '200':
+          description: Node is live
+components:
+  parameters:
+    Key:
+      name: key
+      in: path
+      required: true
+      description: Nonblank key that identifies the stored value.
+      schema:
+        $ref: '#/components/schemas/NonBlankString'
+  responses:
+    BadRequest:
+      description: The key or value is blank, or the request body is unreadable.
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'
+          example:
+            error: Value must not be blank.
+  schemas:
+    NonBlankString:
+      type: string
+      pattern: '.*\S.*'
+      description: A string containing at least one non-whitespace character.
+    KeyValue:
+      type: object
+      required:
+        - key
+        - value
+      properties:
+        key:
+          type: string
+        value:
+          type: string
+    ReplicaWrite:
+      type: object
+      required:
+        - value
+        - timestamp
+        - origin
+      properties:
+        value:
+          type: string
+        timestamp:
+          type: integer
+          format: int64
+          description: Unix epoch time in milliseconds assigned by the coordinator.
+        origin:
+          type: string
+          description: ID of the node that originated the write.
+    ReplicaValue:
+      allOf:
+        - $ref: '#/components/schemas/ReplicaWrite'
+    Error:
+      type: object
+      required:
+        - error
+      properties:
+        error:
+          type: string
