@@ -8,21 +8,41 @@ import org.springframework.stereotype.Service;
 @Service
 public class KeyValueStore {
 
-	private final ConcurrentMap<String, String> values = new ConcurrentHashMap<>();
+	private final ConcurrentMap<String, VersionedValue> values = new ConcurrentHashMap<>();
 
 	public String get(final String key) {
 		validateKey(key);
-		final String value = values.get(key);
+		final VersionedValue value = values.get(key);
 		if (value == null) {
 			throw new KeyNotFoundException(key);
 		}
-		return value;
+		return value.value();
 	}
 
 	public String put(final String key, final String value) {
 		validateKey(key);
 		validateValue(value);
-		values.put(key, value);
+		values.put(key, new VersionedValue(value, System.currentTimeMillis(), ""));
+		return value;
+	}
+
+	public void putReplica(final String key, final String value, final Long timestamp, final String origin) {
+		validateKey(key);
+		validateValue(value);
+		validateTimestamp(timestamp);
+		validateOrigin(origin);
+
+		final VersionedValue replica = new VersionedValue(value, timestamp, origin);
+		values.compute(key, (ignored, current) ->
+				current == null || replica.isNewerThan(current) ? replica : current);
+	}
+
+	public VersionedValue getReplica(final String key) {
+		validateKey(key);
+		final VersionedValue value = values.get(key);
+		if (value == null) {
+			throw new KeyNotFoundException(key);
+		}
 		return value;
 	}
 
@@ -35,6 +55,18 @@ public class KeyValueStore {
 	private void validateValue(final String value) {
 		if (value == null || value.isBlank()) {
 			throw new StoreValidationException("Value must not be blank.");
+		}
+	}
+
+	private void validateTimestamp(final Long timestamp) {
+		if (timestamp == null) {
+			throw new StoreValidationException("Timestamp must be provided.");
+		}
+	}
+
+	private void validateOrigin(final String origin) {
+		if (origin == null || origin.isBlank()) {
+			throw new StoreValidationException("Origin must not be blank.");
 		}
 	}
 }
