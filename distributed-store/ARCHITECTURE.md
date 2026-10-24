@@ -7,9 +7,9 @@ monolithic baseline in `../monolith-store` on throughput, latency, and request s
 increasing load and node failure.
 
 **Implementation status:** The initial module is a package-renamed copy of the monolith's in-memory
-`GET`/`PUT` implementation. The remainder of this document describes the target distributed design;
-consistent hashing, replication, quorum coordination, inter-node APIs, and Docker Compose deployment
-are not implemented yet.
+`GET`/`PUT` implementation plus `GET /internal/health`. The remainder of this document describes
+the target distributed design; consistent hashing, replication, quorum coordination, replica
+inter-node APIs, and Docker Compose deployment are not implemented yet.
 
 **In scope**
 - `GET` and `PUT` only, with the same external contract as the monolith (fair comparison).

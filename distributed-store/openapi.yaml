@@ -6,8 +6,9 @@ info:
     Public API for the simplified distributed key-value store. Its GET and PUT
     contract matches the monolith so clients can use either implementation.
 
-    The initial implementation stores values in memory. The 503 responses describe
-    the target distributed behavior when a read or write quorum cannot be reached.
+    The initial implementation stores values in memory and implements the internal
+    health endpoint. The replica APIs and 503 responses describe the target distributed
+    behavior when a read or write quorum cannot be reached.
 
     Endpoints under /internal are node-to-node APIs. They must not be exposed through
     the client load balancer.
