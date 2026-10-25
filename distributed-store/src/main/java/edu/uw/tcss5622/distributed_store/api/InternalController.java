@@ -28,7 +28,7 @@ public class InternalController {
 	public ResponseEntity<Void> putReplica(
 			@PathVariable final String key,
 			@RequestBody final ReplicaWrite replica) {
-		store.putReplica(key, replica.getValue(), replica.getTimestamp(), replica.getOrigin());
+		store.putReplica(key, replica.value(), replica.timestamp(), replica.origin());
 		return ResponseEntity.ok().build();
 	}
 
