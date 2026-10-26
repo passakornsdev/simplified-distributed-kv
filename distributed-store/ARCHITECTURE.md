@@ -7,8 +7,8 @@ monolithic baseline in `../monolith-store` on throughput, latency, and request s
 increasing load and node failure.
 
 **Implementation status:** The module provides in-memory `GET`/`PUT`, primary-owner routing through
-a static consistent-hash ring, internal replica APIs, and peer HTTP clients. Replication, quorum
-coordination, and Docker Compose deployment are not implemented yet.
+a static consistent-hash ring, internal replica APIs, peer HTTP clients, and a Docker Compose
+five-node deployment. Replication and quorum coordination are not implemented yet.
 
 **In scope**
 - `GET` and `PUT` only, with the same external contract as the monolith (fair comparison).
@@ -140,8 +140,18 @@ edu.uw.tcss5622.distributed_store
 
 ## 12. Deployment
 
-Docker Compose: 5 node containers (`node1`..`node5`, same image) plus an `nginx` load balancer exposing one port.
-Failures are simulated with `docker stop/start` on individual nodes. The monolith runs as one container on the same host and resources budget for comparison.
+Start the five-node cluster and nginx load balancer from `distributed-store`:
+
+```bash
+docker compose up --build
+```
+
+Nginx exposes the public API at `http://localhost:8080` and round-robins requests to
+`node1` through `node5`. Each node receives the same ring membership and all peer URLs, but a
+distinct `nodeId`; internal peer traffic uses the Compose service DNS names. Stop or restart an
+individual node with `docker compose stop node3` or `docker compose start node3`.
+
+The monolith runs as one container on the same host and resources budget for comparison.
 
 ## 13. Evaluation Plan
 

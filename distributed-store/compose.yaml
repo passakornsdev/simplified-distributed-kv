@@ -1,0 +1,54 @@
+name: distributed-store
+
+x-node-environment: &node-environment
+  env: docker
+  nodeList: node1,node2,node3,node4,node5
+  node1Url: http://node1:8080
+  node2Url: http://node2:8080
+  node3Url: http://node3:8080
+  node4Url: http://node4:8080
+  node5Url: http://node5:8080
+
+services:
+  node1:
+    build: .
+    environment:
+      <<: *node-environment
+      nodeId: node1
+
+  node2:
+    build: .
+    environment:
+      <<: *node-environment
+      nodeId: node2
+
+  node3:
+    build: .
+    environment:
+      <<: *node-environment
+      nodeId: node3
+
+  node4:
+    build: .
+    environment:
+      <<: *node-environment
+      nodeId: node4
+
+  node5:
+    build: .
+    environment:
+      <<: *node-environment
+      nodeId: node5
+
+  nginx:
+    image: nginx:1.27-alpine
+    depends_on:
+      - node1
+      - node2
+      - node3
+      - node4
+      - node5
+    ports:
+      - "8080:8080"
+    volumes:
+      - ./nginx.conf:/etc/nginx/nginx.conf:ro

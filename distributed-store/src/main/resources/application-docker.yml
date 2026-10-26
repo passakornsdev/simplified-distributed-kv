@@ -1,0 +1,3 @@
+logging:
+  level:
+    edu.uw.tcss5622.distributed_store: DEBUG
