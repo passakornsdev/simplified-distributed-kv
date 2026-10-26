@@ -1,0 +1,11 @@
+spring:
+  application:
+    name: distributed-store
+  profiles:
+    active: ${env:local}
+
+kv:
+  node-id: ${nodeId:node1}
+  ring:
+    node-ids: ${nodeList:node1,node2,node3,node4,node5}
+    virtual-nodes: 128

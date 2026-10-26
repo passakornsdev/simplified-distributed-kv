@@ -6,10 +6,9 @@ A simplified key-value store inspired by Dynamo (DeCandia et al., 2007). It is c
 monolithic baseline in `../monolith-store` on throughput, latency, and request success rate under
 increasing load and node failure.
 
-**Implementation status:** The initial module is a package-renamed copy of the monolith's in-memory
-`GET`/`PUT` implementation plus `GET /internal/health`. The remainder of this document describes
-the target distributed design; consistent hashing, replication, quorum coordination, replica
-inter-node APIs, and Docker Compose deployment are not implemented yet.
+**Implementation status:** The module provides in-memory `GET`/`PUT`, internal replica APIs, and
+a static consistent-hash ring. Request routing, replication, quorum coordination, peer HTTP
+clients, and Docker Compose deployment are not implemented yet.
 
 **In scope**
 - `GET` and `PUT` only, with the same external contract as the monolith (fair comparison).
@@ -116,12 +115,15 @@ mirroring the monolith's storage lifecycle so comparisons isolate distribution e
 
 | Property | Default | Meaning |
 | --- | --- | --- |
-| `kv.node-id` | required | This node's id |
-| `kv.peers` | required | List of `id=http://host:port` for all nodes |
+| `kv.node-id` | required | This node's ID; it must be in `kv.ring.node-ids` |
+| `kv.ring.node-ids` | required | Complete static list of physical node IDs |
 | `kv.replication.n` / `w` / `r` | 3 / 2 / 2 | Replication factor and quorums |
 | `kv.ring.virtual-nodes` | 128 | Virtual nodes per physical node |
 | `kv.client.timeout-ms` | 500 | Per-replica call timeout |
 | `kv.read-repair.enabled` | true | Enable read repair |
+
+`kv.peers` (node ID to HTTP endpoint mapping) will be added with the peer client. The ring uses
+only node IDs in this phase.
 
 ## 11. Code Structure
 
@@ -129,7 +131,7 @@ mirroring the monolith's storage lifecycle so comparisons isolate distribution e
 edu.uw.tcss5622.distributed_store
   api/          KeyValueController (public), InternalController, error handling
   ring/         ConsistentHashRing, HashFunction
-  cluster/      ClusterConfig, PeerClient (HTTP), FailureDetector
+  cluster/      ClusterProperties, RingConfiguration
   replication/  Coordinator (quorum read/write), VersionedValue
   store/        LocalStore (in-memory)
 ```
