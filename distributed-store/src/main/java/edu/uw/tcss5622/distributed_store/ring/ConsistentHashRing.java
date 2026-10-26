@@ -56,12 +56,6 @@ public final class ConsistentHashRing {
         memberCount = uniqueNodeIds.size();
     }
 
-    public String nodeFor(final String key) {
-        var nodeId = preferenceList(key, 1).getFirst();
-        log.debug("Key: {} goes to node: {}", key, nodeId);
-        return nodeId;
-    }
-
     public List<String> preferenceList(final String key, final int count) {
         if (key == null || key.isBlank()) throw new IllegalArgumentException("Key must not be blank.");
         if (count <= 0 || count > memberCount)

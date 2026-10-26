@@ -1,10 +1,11 @@
 package edu.uw.tcss5622.distributed_store.cluster;
 
-import edu.uw.tcss5622.distributed_store.api.KeyValueResponse;
+import java.util.Optional;
+
+import edu.uw.tcss5622.distributed_store.store.VersionedValue;
 
 public interface PeerClient {
 
-	KeyValueResponse get(String nodeId, String key);
-
-	KeyValueResponse put(String nodeId, String key, String value);
+	Optional<VersionedValue> getReplica(String nodeId, String key);
+	void putReplica(String nodeId, String key, VersionedValue value);
 }

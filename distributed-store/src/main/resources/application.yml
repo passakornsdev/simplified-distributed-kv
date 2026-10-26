@@ -15,3 +15,11 @@ kv:
   ring:
     node-ids: ${nodeList:node1,node2,node3,node4,node5}
     virtual-nodes: 128
+  replication:
+    n: 3
+    w: 2
+    r: 2
+  client:
+    timeout-ms: 500
+  read-repair:
+    enabled: true

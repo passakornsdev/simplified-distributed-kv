@@ -55,7 +55,10 @@ class RingConfigurationTests {
 						"--kv.node-id=node-a",
 						"--kv.ring.node-ids=node-a,node-b",
 						"--kv.peers.node-b=http://node-b:8080",
-						"--kv.ring.virtual-nodes=2")) {
+						"--kv.ring.virtual-nodes=2",
+						"--kv.replication.n=2",
+						"--kv.replication.w=1",
+						"--kv.replication.r=2")) {
 			final ConsistentHashRing ring = context.getBean(ConsistentHashRing.class);
 
 			assertEquals(2, ring.preferenceList("key", 2).size());
@@ -68,6 +71,9 @@ class RingConfigurationTests {
 		properties.getRing().setNodeIds(nodeIds);
 		properties.setPeers(java.util.Map.of("node-b", "http://node-b:8080"));
 		properties.getRing().setVirtualNodes(2);
+		properties.getReplication().setN(2);
+		properties.getReplication().setW(1);
+		properties.getReplication().setR(2);
 		return properties;
 	}
 }

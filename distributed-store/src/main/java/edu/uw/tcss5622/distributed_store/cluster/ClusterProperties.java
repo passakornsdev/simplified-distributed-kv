@@ -16,6 +16,9 @@ public class ClusterProperties {
 	private String nodeId;
 	private Map<String, String> peers = new HashMap<>();
 	private RingProperties ring = new RingProperties();
+	private ReplicationProperties replication = new ReplicationProperties();
+	private ClientProperties client = new ClientProperties();
+	private ReadRepairProperties readRepair = new ReadRepairProperties();
 
 	public Map<String, String> getPeers() {
 		return Map.copyOf(peers);
@@ -40,4 +43,24 @@ public class ClusterProperties {
 		}
 
     }
+
+	@Setter
+	@Getter
+	public static class ReplicationProperties {
+		private int n = 3;
+		private int w = 2;
+		private int r = 2;
+	}
+
+	@Setter
+	@Getter
+	public static class ClientProperties {
+		private long timeoutMs = 500;
+	}
+
+	@Setter
+	@Getter
+	public static class ReadRepairProperties {
+		private boolean enabled = true;
+	}
 }

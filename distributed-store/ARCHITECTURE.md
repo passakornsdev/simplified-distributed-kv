@@ -6,9 +6,9 @@ A simplified key-value store inspired by Dynamo (DeCandia et al., 2007). It is c
 monolithic baseline in `../monolith-store` on throughput, latency, and request success rate under
 increasing load and node failure.
 
-**Implementation status:** The module provides in-memory `GET`/`PUT`, primary-owner routing through
-a static consistent-hash ring, internal replica APIs, peer HTTP clients, and a Docker Compose
-five-node deployment. Replication and quorum coordination are not implemented yet.
+**Implementation status:** The module provides in-memory `GET`/`PUT`, a static consistent-hash ring,
+versioned replica APIs, quorum replication and reads, read repair, peer HTTP clients, and a Docker
+Compose five-node deployment.
 
 **In scope**
 - `GET` and `PUT` only, with the same external contract as the monolith (fair comparison).
@@ -123,9 +123,9 @@ mirroring the monolith's storage lifecycle so comparisons isolate distribution e
 | `kv.client.timeout-ms` | 500 | Per-replica call timeout |
 | `kv.read-repair.enabled` | true | Enable read repair |
 
-Every node must use the same `kv.ring.node-ids` and `kv.ring.virtual-nodes`. It routes a key to
-its primary owner, executing locally when it owns the key and forwarding `GET` or `PUT` to the
-configured `kv.peers.<node-id>` endpoint otherwise.
+Every node must use the same `kv.ring.node-ids` and `kv.ring.virtual-nodes`. The receiving node
+coordinates each request by contacting the preference list through configured
+`kv.peers.<node-id>` internal endpoints.
 
 ## 11. Code Structure
 
@@ -134,7 +134,7 @@ edu.uw.tcss5622.distributed_store
   api/          KeyValueController (public), InternalController, error handling
   ring/         ConsistentHashRing, HashFunction
   cluster/      ClusterProperties, RingConfiguration, HttpPeerClient
-  replication/  GetCoordinator, PutCoordinator (primary routing; future quorum coordination)
+  replication/  GetCoordinator, PutCoordinator, quorum coordination
   store/        LocalStore (in-memory)
 ```
 

@@ -2,6 +2,8 @@ package edu.uw.tcss5622.distributed_store.cluster;
 
 import java.net.URI;
 import java.net.URISyntaxException;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
 
 import edu.uw.tcss5622.distributed_store.ring.ConsistentHashRing;
 import edu.uw.tcss5622.distributed_store.ring.HashFunction;
@@ -35,10 +37,36 @@ public class RingConfiguration {
 				validatePeerUrl(peerNodeId, properties.getPeers().get(peerNodeId));
 			}
 		}
+		validateReplication(properties);
 		return new ConsistentHashRing(
 				properties.getRing().getNodeIds(),
 				properties.getRing().getVirtualNodes(),
 				hashFunction);
+	}
+
+	@Bean(destroyMethod = "close")
+	ExecutorService replicaExecutor() {
+		return Executors.newVirtualThreadPerTaskExecutor();
+	}
+
+	private void validateReplication(final ClusterProperties properties) {
+		final int memberCount = properties.getRing().getNodeIds().size();
+		final var replication = properties.getReplication();
+		if (replication.getN() <= 0 || replication.getN() > memberCount) {
+			throw new IllegalArgumentException("kv.replication.n must be between 1 and ring member count.");
+		}
+		if (replication.getW() <= 0 || replication.getW() > replication.getN()) {
+			throw new IllegalArgumentException("kv.replication.w must be between 1 and kv.replication.n.");
+		}
+		if (replication.getR() <= 0 || replication.getR() > replication.getN()) {
+			throw new IllegalArgumentException("kv.replication.r must be between 1 and kv.replication.n.");
+		}
+		if (replication.getW() + replication.getR() <= replication.getN()) {
+			throw new IllegalArgumentException("kv.replication.w + kv.replication.r must exceed kv.replication.n.");
+		}
+		if (properties.getClient().getTimeoutMs() <= 0) {
+			throw new IllegalArgumentException("kv.client.timeout-ms must be positive.");
+		}
 	}
 
 	private void validatePeerUrl(final String nodeId, final String peerUrl) {

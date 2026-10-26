@@ -11,23 +11,6 @@ import org.junit.jupiter.api.Test;
 class ConsistentHashRingTests {
 
 	@Test
-	void selectsNodesClockwiseAndWrapsAroundTheRing() {
-		final ConsistentHashRing ring = new ConsistentHashRing(
-				List.of("node-c", "node-a", "node-b"),
-				1,
-				hashes(Map.of(
-						"node-a#0", 10L,
-						"node-b#0", 30L,
-						"node-c#0", 50L,
-						"middle", 31L,
-						"after-last", 60L)));
-
-		assertEquals("node-c", ring.nodeFor("middle"));
-		assertEquals("node-a", ring.nodeFor("after-last"));
-		assertEquals(List.of("node-c", "node-a", "node-b"), ring.preferenceList("middle", 3));
-	}
-
-	@Test
 	void returnsDistinctPhysicalNodesWhenVirtualNodesAreEncountered() {
 		final ConsistentHashRing ring = new ConsistentHashRing(
 				List.of("node-a", "node-b"),

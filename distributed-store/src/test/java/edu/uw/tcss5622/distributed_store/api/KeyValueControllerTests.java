@@ -1,27 +1,33 @@
 package edu.uw.tcss5622.distributed_store.api;
 
 import java.util.List;
-import java.util.Map;
+import java.util.Optional;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
 
 import edu.uw.tcss5622.distributed_store.cluster.ClusterProperties;
 import edu.uw.tcss5622.distributed_store.cluster.PeerClient;
-import edu.uw.tcss5622.distributed_store.cluster.PeerConfigurationException;
-import edu.uw.tcss5622.distributed_store.cluster.PeerUnavailableException;
 import edu.uw.tcss5622.distributed_store.ring.ConsistentHashRing;
-import edu.uw.tcss5622.distributed_store.ring.HashFunction;
 import edu.uw.tcss5622.distributed_store.ring.Md5HashFunction;
 import edu.uw.tcss5622.distributed_store.replication.GetCoordinator;
 import edu.uw.tcss5622.distributed_store.replication.PutCoordinator;
-import edu.uw.tcss5622.distributed_store.store.KeyNotFoundException;
 import edu.uw.tcss5622.distributed_store.store.KeyValueStore;
-import static org.junit.jupiter.api.Assertions.assertEquals;
-import static org.junit.jupiter.api.Assertions.assertThrows;
+import edu.uw.tcss5622.distributed_store.store.VersionedValue;
+import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.http.MediaType;
 import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.web.servlet.setup.MockMvcBuilders;
 
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyString;
+import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.Mockito.doThrow;
+import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.timeout;
+import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.when;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.put;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
@@ -29,14 +35,25 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 
 class KeyValueControllerTests {
 
+	private ExecutorService executor;
 	private MockMvc mockMvc;
 
 	@BeforeEach
 	void setUp() {
+		executor = Executors.newVirtualThreadPerTaskExecutor();
 		mockMvc = mockMvc(
 				new KeyValueStore(),
 				new ConsistentHashRing(List.of("node1"), 1, new Md5HashFunction()),
-				new FailingPeerClient());
+				mock(PeerClient.class),
+				List.of("node1"),
+				1,
+				1,
+				1);
+	}
+
+	@AfterEach
+	void tearDown() {
+		executor.close();
 	}
 
 	@Test
@@ -55,7 +72,7 @@ class KeyValueControllerTests {
 	}
 
 	@Test
-	void returnsNotFoundForMissingKey() throws Exception {
+	void returnsNotFoundWhenAReadQuorumHasNoValue() throws Exception {
 		mockMvc.perform(get("/kv/missing"))
 				.andExpect(status().isNotFound())
 				.andExpect(jsonPath("$.error").value("No value is stored for key 'missing'."));
@@ -76,156 +93,91 @@ class KeyValueControllerTests {
 	}
 
 	@Test
-	void forwardsWritesToThePrimaryOwner() throws Exception {
+	void writesToThePreferenceListAndSucceedsAfterWriteQuorum() throws Exception {
+		final PeerClient peerClient = mock(PeerClient.class);
 		final KeyValueStore store = new KeyValueStore();
-		final RecordingPeerClient peerClient = new RecordingPeerClient();
-		final MockMvc routingMvc = mockMvc(
+		final MockMvc quorumMvc = mockMvc(
 				store,
-				ring(Map.of("node1#0", 10L, "node2#0", 20L, "greeting", 15L)),
-				peerClient);
+				new ConsistentHashRing(List.of("node1", "node2", "node3"), 1, new Md5HashFunction()),
+				peerClient,
+				List.of("node1", "node2", "node3"),
+				3,
+				2,
+				2);
 
-		routingMvc.perform(put("/kv/greeting")
+		quorumMvc.perform(put("/kv/greeting")
 				.contentType(MediaType.TEXT_PLAIN)
 				.content("hello"))
-				.andExpect(status().isOk())
-				.andExpect(jsonPath("$.key").value("greeting"))
-				.andExpect(jsonPath("$.value").value("hello"));
+				.andExpect(status().isOk());
 
-		assertEquals("node2", peerClient.nodeId);
-		assertEquals("greeting", peerClient.key);
-		assertEquals("hello", peerClient.value);
-		assertThrows(KeyNotFoundException.class, () -> store.get("greeting"));
+		verify(peerClient, timeout(100).times(2))
+				.putReplica(anyString(), eq("greeting"), any(VersionedValue.class));
 	}
 
 	@Test
-	void forwardsReadsToThePrimaryOwner() throws Exception {
-		final RecordingPeerClient peerClient = new RecordingPeerClient();
-		final MockMvc routingMvc = mockMvc(
+	void returnsServiceUnavailableWhenWriteQuorumCannotBeMet() throws Exception {
+		final PeerClient peerClient = mock(PeerClient.class);
+		doThrow(new IllegalStateException("unavailable"))
+				.when(peerClient)
+				.putReplica(anyString(), anyString(), any(VersionedValue.class));
+		final MockMvc quorumMvc = mockMvc(
 				new KeyValueStore(),
-				ring(Map.of("node1#0", 10L, "node2#0", 20L, "greeting", 15L)),
-				peerClient);
+				new ConsistentHashRing(List.of("node1", "node2", "node3"), 1, new Md5HashFunction()),
+				peerClient,
+				List.of("node1", "node2", "node3"),
+				3,
+				2,
+				3);
 
-		routingMvc.perform(get("/kv/greeting"))
-				.andExpect(status().isOk())
-				.andExpect(jsonPath("$.key").value("greeting"))
-				.andExpect(jsonPath("$.value").value("remote-value"));
-
-		assertEquals("node2", peerClient.nodeId);
-		assertEquals("greeting", peerClient.key);
-	}
-
-	@Test
-	void reportsServiceUnavailableWhenThePrimaryOwnerCannotBeReached() throws Exception {
-		final MockMvc routingMvc = mockMvc(
-				new KeyValueStore(),
-				ring(Map.of("node1#0", 10L, "node2#0", 20L, "greeting", 15L)),
-				new UnavailablePeerClient());
-
-		routingMvc.perform(get("/kv/greeting"))
+		quorumMvc.perform(put("/kv/greeting")
+				.contentType(MediaType.TEXT_PLAIN)
+				.content("hello"))
 				.andExpect(status().isServiceUnavailable())
-				.andExpect(jsonPath("$.error").value("Node 'node2' is unavailable."));
+				.andExpect(jsonPath("$.error")
+						.value("Unable to meet write quorum: required 2 responses but received 1."));
 	}
 
 	@Test
-	void reportsInternalServerErrorWhenThePrimaryOwnerIsNotConfigured() throws Exception {
-		final MockMvc routingMvc = mockMvc(
+	void returnsTheNewestValueFromAReadQuorum() throws Exception {
+		final PeerClient peerClient = mock(PeerClient.class);
+		when(peerClient.getReplica("node2", "greeting"))
+				.thenReturn(Optional.of(new VersionedValue("old", 100, "node2")));
+		when(peerClient.getReplica("node3", "greeting"))
+				.thenReturn(Optional.of(new VersionedValue("new", 200, "node3")));
+		final MockMvc quorumMvc = mockMvc(
 				new KeyValueStore(),
-				ring(Map.of("node1#0", 10L, "node2#0", 20L, "greeting", 15L)),
-				new UnconfiguredPeerClient());
+				new ConsistentHashRing(List.of("node1", "node2", "node3"), 1, new Md5HashFunction()),
+				peerClient,
+				List.of("node1", "node2", "node3"),
+				3,
+				2,
+				3);
 
-		routingMvc.perform(get("/kv/greeting"))
-				.andExpect(status().isInternalServerError())
-				.andExpect(jsonPath("$.error").value("No peer URL is configured for node 'node2'."));
+		quorumMvc.perform(get("/kv/greeting"))
+				.andExpect(status().isOk())
+				.andExpect(jsonPath("$.value").value("new"));
 	}
 
 	private MockMvc mockMvc(
 			final KeyValueStore store,
 			final ConsistentHashRing ring,
-			final PeerClient peerClient) {
+			final PeerClient peerClient,
+			final List<String> nodeIds,
+			final int replicationFactor,
+			final int writeQuorum,
+			final int readQuorum) {
+		final ClusterProperties properties = new ClusterProperties();
+		properties.setNodeId("node1");
+		properties.getRing().setNodeIds(nodeIds);
+		properties.getReplication().setN(replicationFactor);
+		properties.getReplication().setW(writeQuorum);
+		properties.getReplication().setR(readQuorum);
 		return MockMvcBuilders
 				.standaloneSetup(new KeyValueController(
-						new GetCoordinator(store, properties("node1"), ring, peerClient),
-						new PutCoordinator(store, properties("node1"), ring, peerClient)))
+						new GetCoordinator(store, properties, ring, peerClient, executor),
+						new PutCoordinator(store, properties, ring, peerClient, executor)))
 				.setControllerAdvice(new ApiExceptionHandler())
 				.build();
 	}
 
-	private ClusterProperties properties(final String nodeId) {
-		final ClusterProperties properties = new ClusterProperties();
-		properties.setNodeId(nodeId);
-		properties.getRing().setNodeIds(List.of("node1", "node2"));
-		return properties;
-	}
-
-	private ConsistentHashRing ring(final Map<String, Long> positions) {
-		final HashFunction hashFunction = value -> {
-			final Long position = positions.get(value);
-			if (position == null) {
-				throw new IllegalArgumentException("No hash configured for " + value);
-			}
-			return position;
-		};
-		return new ConsistentHashRing(List.of("node1", "node2"), 1, hashFunction);
-	}
-
-	private static final class FailingPeerClient implements PeerClient {
-
-		@Override
-		public KeyValueResponse get(final String nodeId, final String key) {
-			throw new AssertionError("Unexpected peer read.");
-		}
-
-		@Override
-		public KeyValueResponse put(final String nodeId, final String key, final String value) {
-			throw new AssertionError("Unexpected peer write.");
-		}
-	}
-
-	private static final class RecordingPeerClient implements PeerClient {
-
-		private String nodeId;
-		private String key;
-		private String value;
-
-		@Override
-		public KeyValueResponse get(final String nodeId, final String key) {
-			this.nodeId = nodeId;
-			this.key = key;
-			return new KeyValueResponse(key, "remote-value");
-		}
-
-		@Override
-		public KeyValueResponse put(final String nodeId, final String key, final String value) {
-			this.nodeId = nodeId;
-			this.key = key;
-			this.value = value;
-			return new KeyValueResponse(key, value);
-		}
-	}
-
-	private static final class UnavailablePeerClient implements PeerClient {
-
-		@Override
-		public KeyValueResponse get(final String nodeId, final String key) {
-			throw new PeerUnavailableException(nodeId, new IllegalStateException());
-		}
-
-		@Override
-		public KeyValueResponse put(final String nodeId, final String key, final String value) {
-			throw new PeerUnavailableException(nodeId, new IllegalStateException());
-		}
-	}
-
-	private static final class UnconfiguredPeerClient implements PeerClient {
-
-		@Override
-		public KeyValueResponse get(final String nodeId, final String key) {
-			throw new PeerConfigurationException(nodeId);
-		}
-
-		@Override
-		public KeyValueResponse put(final String nodeId, final String key, final String value) {
-			throw new PeerConfigurationException(nodeId);
-		}
-	}
 }
