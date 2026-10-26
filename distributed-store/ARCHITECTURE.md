@@ -6,9 +6,9 @@ A simplified key-value store inspired by Dynamo (DeCandia et al., 2007). It is c
 monolithic baseline in `../monolith-store` on throughput, latency, and request success rate under
 increasing load and node failure.
 
-**Implementation status:** The module provides in-memory `GET`/`PUT`, internal replica APIs, and
-a static consistent-hash ring. Request routing, replication, quorum coordination, peer HTTP
-clients, and Docker Compose deployment are not implemented yet.
+**Implementation status:** The module provides in-memory `GET`/`PUT`, primary-owner routing through
+a static consistent-hash ring, internal replica APIs, and peer HTTP clients. Replication, quorum
+coordination, and Docker Compose deployment are not implemented yet.
 
 **In scope**
 - `GET` and `PUT` only, with the same external contract as the monolith (fair comparison).
@@ -117,13 +117,15 @@ mirroring the monolith's storage lifecycle so comparisons isolate distribution e
 | --- | --- | --- |
 | `kv.node-id` | required | This node's ID; it must be in `kv.ring.node-ids` |
 | `kv.ring.node-ids` | required | Complete static list of physical node IDs |
+| `kv.peers.<node-id>` | required for remote nodes | Base HTTP URL for each non-local ring node |
 | `kv.replication.n` / `w` / `r` | 3 / 2 / 2 | Replication factor and quorums |
 | `kv.ring.virtual-nodes` | 128 | Virtual nodes per physical node |
 | `kv.client.timeout-ms` | 500 | Per-replica call timeout |
 | `kv.read-repair.enabled` | true | Enable read repair |
 
-`kv.peers` (node ID to HTTP endpoint mapping) will be added with the peer client. The ring uses
-only node IDs in this phase.
+Every node must use the same `kv.ring.node-ids` and `kv.ring.virtual-nodes`. It routes a key to
+its primary owner, executing locally when it owns the key and forwarding `GET` or `PUT` to the
+configured `kv.peers.<node-id>` endpoint otherwise.
 
 ## 11. Code Structure
 
@@ -131,8 +133,8 @@ only node IDs in this phase.
 edu.uw.tcss5622.distributed_store
   api/          KeyValueController (public), InternalController, error handling
   ring/         ConsistentHashRing, HashFunction
-  cluster/      ClusterProperties, RingConfiguration
-  replication/  Coordinator (quorum read/write), VersionedValue
+  cluster/      ClusterProperties, RingConfiguration, HttpPeerClient
+  replication/  GetCoordinator, PutCoordinator (primary routing; future quorum coordination)
   store/        LocalStore (in-memory)
 ```
 

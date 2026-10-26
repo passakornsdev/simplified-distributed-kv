@@ -6,6 +6,12 @@ spring:
 
 kv:
   node-id: ${nodeId:node1}
+  peers:
+    node1: ${node1Url:http://node1:8080}
+    node2: ${node2Url:http://node2:8080}
+    node3: ${node3Url:http://node3:8080}
+    node4: ${node4Url:http://node4:8080}
+    node5: ${node5Url:http://node5:8080}
   ring:
     node-ids: ${nodeList:node1,node2,node3,node4,node5}
     virtual-nodes: 128

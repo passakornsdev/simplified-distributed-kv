@@ -38,12 +38,23 @@ class RingConfigurationTests {
 	}
 
 	@Test
+	void requiresPeerUrlsForRemoteRingNodes() {
+		final ClusterProperties properties = new ClusterProperties();
+		properties.setNodeId("node-a");
+		properties.getRing().setNodeIds(List.of("node-a", "node-b"));
+
+		assertThrows(IllegalArgumentException.class,
+				() -> configuration.consistentHashRing(properties, new Md5HashFunction()));
+	}
+
+	@Test
 	void bindsConfiguredMembershipWhenTheApplicationStarts() {
 		try (ConfigurableApplicationContext context = new SpringApplicationBuilder(DistributedStoreApplication.class)
 				.web(WebApplicationType.NONE)
 				.run(
 						"--kv.node-id=node-a",
 						"--kv.ring.node-ids=node-a,node-b",
+						"--kv.peers.node-b=http://node-b:8080",
 						"--kv.ring.virtual-nodes=2")) {
 			final ConsistentHashRing ring = context.getBean(ConsistentHashRing.class);
 
@@ -55,6 +66,7 @@ class RingConfigurationTests {
 		final ClusterProperties properties = new ClusterProperties();
 		properties.setNodeId(nodeId);
 		properties.getRing().setNodeIds(nodeIds);
+		properties.setPeers(java.util.Map.of("node-b", "http://node-b:8080"));
 		properties.getRing().setVirtualNodes(2);
 		return properties;
 	}

@@ -11,12 +11,10 @@ import java.util.Objects;
 import java.util.Set;
 import java.util.TreeMap;
 
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
+import lombok.extern.slf4j.Slf4j;
 
+@Slf4j
 public final class ConsistentHashRing {
-
-    private static final Logger LOGGER = LoggerFactory.getLogger(ConsistentHashRing.class);
 
     private final NavigableMap<Long, String> positions;
     private final int memberCount;
@@ -47,7 +45,7 @@ public final class ConsistentHashRing {
                 if (existingNodeId != null) {
                     throw new IllegalArgumentException("Virtual node hash collision between '%s' and '%s'.".formatted(existingNodeId, nodeId));
                 }
-                LOGGER.debug(
+                log.debug(
                         "Assigned virtual node {}#{} to ring position {}",
                         nodeId,
                         index,
@@ -60,7 +58,7 @@ public final class ConsistentHashRing {
 
     public String nodeFor(final String key) {
         var nodeId = preferenceList(key, 1).getFirst();
-        LOGGER.debug("Key: {} goes to node: {}", key, nodeId);
+        log.debug("Key: {} goes to node: {}", key, nodeId);
         return nodeId;
     }
 

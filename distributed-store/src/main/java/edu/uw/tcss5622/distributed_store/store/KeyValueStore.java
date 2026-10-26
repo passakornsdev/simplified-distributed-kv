@@ -46,13 +46,13 @@ public class KeyValueStore {
 		return value;
 	}
 
-	private void validateKey(final String key) {
+	public void validateKey(final String key) {
 		if (key == null || key.isBlank()) {
 			throw new StoreValidationException("Key must not be blank.");
 		}
 	}
 
-	private void validateValue(final String value) {
+	public void validateValue(final String value) {
 		if (value == null || value.isBlank()) {
 			throw new StoreValidationException("Value must not be blank.");
 		}
