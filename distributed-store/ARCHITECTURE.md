@@ -80,7 +80,7 @@ A replica applies a write only if its timestamp is newer than the stored one (ti
 Defaults: **N=3, W=2, R=2** (R + W > N). All configurable.
 
 **PUT**
-1. Coordinator assigns `timestamp = System.currentTimeMillis()` (last-write-wins).
+1. Coordinator increments the key's Lamport logical clock and assigns the resulting timestamp.
 2. Sends the versioned write to all N replicas in parallel (with per-call timeout).
 3. Returns `200` once W replicas ack; remaining writes continue best effort.
 4. If fewer than W ack within the timeout, return `503`.
@@ -92,8 +92,8 @@ Defaults: **N=3, W=2, R=2** (R + W > N). All configurable.
 3. Fewer than R responses within the timeout -> `503`.
 4. Read repair (optional, asynchronous): push the newest version to stale replicas that responded.
 
-**Conflict resolution:** last-write-wins by timestamp. Known limitation: clock skew can drop a concurrent write
-(vector clocks are a non-goal).
+**Conflict resolution:** last-write-wins by Lamport timestamp, with node ID as a deterministic tie-breaker.
+When a replica receives a write, it advances that key's logical clock to `max(local, received) + 1`.
 
 ## 8. Failure Detection and Handling
 

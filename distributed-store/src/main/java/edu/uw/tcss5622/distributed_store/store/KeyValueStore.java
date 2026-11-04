@@ -2,6 +2,7 @@ package edu.uw.tcss5622.distributed_store.store;
 
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentMap;
+import java.util.concurrent.atomic.AtomicLong;
 
 import org.springframework.stereotype.Service;
 
@@ -9,6 +10,7 @@ import org.springframework.stereotype.Service;
 public class KeyValueStore {
 
 	private final ConcurrentMap<String, VersionedValue> values = new ConcurrentHashMap<>();
+	private final ConcurrentMap<String, AtomicLong> logicalClocks = new ConcurrentHashMap<>();
 
 	public String get(final String key) {
 		validateKey(key);
@@ -22,7 +24,7 @@ public class KeyValueStore {
 	public String put(final String key, final String value) {
 		validateKey(key);
 		validateValue(value);
-		values.put(key, new VersionedValue(value, System.currentTimeMillis(), ""));
+		values.put(key, new VersionedValue(value, nextTimestamp(key), ""));
 		return value;
 	}
 
@@ -31,10 +33,23 @@ public class KeyValueStore {
 		validateValue(value);
 		validateTimestamp(timestamp);
 		validateOrigin(origin);
+		observeTimestamp(key, timestamp);
 
 		final VersionedValue replica = new VersionedValue(value, timestamp, origin);
 		values.compute(key, (ignored, current) ->
 				current == null || replica.isNewerThan(current) ? replica : current);
+	}
+
+	public long nextTimestamp(final String key) {
+		return clockFor(key).updateAndGet(Math::incrementExact);
+	}
+
+	private void observeTimestamp(final String key, final long timestamp) {
+		clockFor(key).updateAndGet(current -> Math.incrementExact(Math.max(current, timestamp)));
+	}
+
+	private AtomicLong clockFor(final String key) {
+		return logicalClocks.computeIfAbsent(key, ignored -> new AtomicLong());
 	}
 
 	public VersionedValue getReplica(final String key) {

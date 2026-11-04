@@ -25,6 +25,27 @@ class KeyValueStoreTests {
 	}
 
 	@Test
+	void assignsIndependentLogicalTimestampsPerKey() {
+		store.put("first", "one");
+		store.put("second", "two");
+
+		assertEquals(1, store.getReplica("first").getTimestamp());
+		assertEquals(1, store.getReplica("second").getTimestamp());
+		store.put("first", "three");
+		assertEquals(2, store.getReplica("first").getTimestamp());
+	}
+
+	@Test
+	void advancesLogicalClockAfterReceivingReplicaWrite() {
+		store.putReplica("remote", "value", 10L, "node2");
+		store.put("local", "value");
+
+		assertEquals(1, store.getReplica("local").getTimestamp());
+		store.put("remote", "new-value");
+		assertEquals(12, store.getReplica("remote").getTimestamp());
+	}
+
+	@Test
 	void rejectsBlankKeysAndValues() {
 		assertThrows(StoreValidationException.class, () -> store.put(" ", "value"));
 		assertThrows(StoreValidationException.class, () -> store.put("key", " "));

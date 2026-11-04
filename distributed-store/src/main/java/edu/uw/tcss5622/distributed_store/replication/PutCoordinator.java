@@ -30,16 +30,15 @@ public class PutCoordinator extends PrimaryNodeCoordinator {
 	public KeyValueResponse put(final String key, final String value) {
 		store.validateKey(key);
 		store.validateValue(value);
+		final var replicaNodeIds = replicaNodeIds(key);
 		final VersionedValue replica = new VersionedValue(
 				value,
-				System.currentTimeMillis(),
+				store.nextTimestamp(key),
 				properties.getNodeId());
-		final var replicaNodeIds = replicaNodeIds(key);
 		final CompletionService<Boolean> completions = new ExecutorCompletionService<>(executor);
 		for (final String nodeId : replicaNodeIds) {
 			completions.submit(() -> writeReplica(nodeId, key, replica));
 		}
-
 		int acknowledgements = 0;
 		int completed = 0;
 		final long deadline = System.nanoTime() + TimeUnit.MILLISECONDS.toNanos(properties.getClient().getTimeoutMs());
