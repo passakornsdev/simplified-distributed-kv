@@ -1,0 +1,267 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: distributed-store-cluster
+data:
+  nodeList: node1,node2,node3,node4,node5
+  node1Url: http://node1:8080
+  node2Url: http://node2:8080
+  node3Url: http://node3:8080
+  node4Url: http://node4:8080
+  node5Url: http://node5:8080
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: node1
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: distributed-store
+      node: node1
+  template:
+    metadata:
+      labels:
+        app: distributed-store
+        node: node1
+    spec:
+      containers:
+        - name: distributed-store
+          image: distributed-store:latest
+          imagePullPolicy: IfNotPresent
+          envFrom:
+            - configMapRef:
+                name: distributed-store-cluster
+          env:
+            - name: nodeId
+              value: node1
+          ports:
+            - containerPort: 8080
+          readinessProbe:
+            httpGet:
+              path: /internal/health
+              port: 8080
+          livenessProbe:
+            httpGet:
+              path: /internal/health
+              port: 8080
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: node1
+spec:
+  selector:
+    app: distributed-store
+    node: node1
+  ports:
+    - port: 8080
+      targetPort: 8080
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: node2
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: distributed-store
+      node: node2
+  template:
+    metadata:
+      labels:
+        app: distributed-store
+        node: node2
+    spec:
+      containers:
+        - name: distributed-store
+          image: distributed-store:latest
+          imagePullPolicy: IfNotPresent
+          envFrom:
+            - configMapRef:
+                name: distributed-store-cluster
+          env:
+            - name: nodeId
+              value: node2
+          ports:
+            - containerPort: 8080
+          readinessProbe:
+            httpGet:
+              path: /internal/health
+              port: 8080
+          livenessProbe:
+            httpGet:
+              path: /internal/health
+              port: 8080
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: node2
+spec:
+  selector:
+    app: distributed-store
+    node: node2
+  ports:
+    - port: 8080
+      targetPort: 8080
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: node3
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: distributed-store
+      node: node3
+  template:
+    metadata:
+      labels:
+        app: distributed-store
+        node: node3
+    spec:
+      containers:
+        - name: distributed-store
+          image: distributed-store:latest
+          imagePullPolicy: IfNotPresent
+          envFrom:
+            - configMapRef:
+                name: distributed-store-cluster
+          env:
+            - name: nodeId
+              value: node3
+          ports:
+            - containerPort: 8080
+          readinessProbe:
+            httpGet:
+              path: /internal/health
+              port: 8080
+          livenessProbe:
+            httpGet:
+              path: /internal/health
+              port: 8080
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: node3
+spec:
+  selector:
+    app: distributed-store
+    node: node3
+  ports:
+    - port: 8080
+      targetPort: 8080
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: node4
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: distributed-store
+      node: node4
+  template:
+    metadata:
+      labels:
+        app: distributed-store
+        node: node4
+    spec:
+      containers:
+        - name: distributed-store
+          image: distributed-store:latest
+          imagePullPolicy: IfNotPresent
+          envFrom:
+            - configMapRef:
+                name: distributed-store-cluster
+          env:
+            - name: nodeId
+              value: node4
+          ports:
+            - containerPort: 8080
+          readinessProbe:
+            httpGet:
+              path: /internal/health
+              port: 8080
+          livenessProbe:
+            httpGet:
+              path: /internal/health
+              port: 8080
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: node4
+spec:
+  selector:
+    app: distributed-store
+    node: node4
+  ports:
+    - port: 8080
+      targetPort: 8080
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: node5
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: distributed-store
+      node: node5
+  template:
+    metadata:
+      labels:
+        app: distributed-store
+        node: node5
+    spec:
+      containers:
+        - name: distributed-store
+          image: distributed-store:latest
+          imagePullPolicy: IfNotPresent
+          envFrom:
+            - configMapRef:
+                name: distributed-store-cluster
+          env:
+            - name: nodeId
+              value: node5
+          ports:
+            - containerPort: 8080
+          readinessProbe:
+            httpGet:
+              path: /internal/health
+              port: 8080
+          livenessProbe:
+            httpGet:
+              path: /internal/health
+              port: 8080
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: node5
+spec:
+  selector:
+    app: distributed-store
+    node: node5
+  ports:
+    - port: 8080
+      targetPort: 8080
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: distributed-store
+spec:
+  selector:
+    app: distributed-store
+  ports:
+    - port: 8080
+      targetPort: 8080

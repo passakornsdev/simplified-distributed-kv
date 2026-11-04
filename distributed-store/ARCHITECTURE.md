@@ -7,8 +7,8 @@ monolithic baseline in `../monolith-store` on throughput, latency, and request s
 increasing load and node failure.
 
 **Implementation status:** The module provides in-memory `GET`/`PUT`, a static consistent-hash ring,
-versioned replica APIs, quorum replication and reads, read repair, peer HTTP clients, and a Docker
-Compose five-node deployment.
+versioned replica APIs, quorum replication and reads, read repair, peer HTTP clients, and a
+Kubernetes five-node deployment.
 
 **In scope**
 - `GET` and `PUT` only, with the same external contract as the monolith (fair comparison).
@@ -28,9 +28,9 @@ Every node runs the same application image; behavior is set by configuration.
 ## 3. System Overview
 
 ```
-            +--------+
- clients -> | nginx  |  round-robin load balancer (stateless)
-            +---+----+
+            +------------------------+
+ clients -> | Kubernetes Service     |  round-robin load balancer
+            +-----------+------------+
                 | any node
    +------+-----+-----+------+------+
    |      |     |     |      |      |
@@ -140,16 +140,20 @@ edu.uw.tcss5622.distributed_store
 
 ## 12. Deployment
 
-Start the five-node cluster and nginx load balancer from `distributed-store`:
+Build the application image and make `distributed-store:latest` available to the Kubernetes
+cluster. Then, from `distributed-store`, deploy the five-node cluster and public Service:
 
 ```bash
-docker compose up --build
+docker build -t distributed-store:latest .
+kubectl apply -f k8s/distributed-store.yaml
+kubectl port-forward service/distributed-store 8080:8080
 ```
 
-Nginx exposes the public API at `http://localhost:8080` and round-robins requests to
-`node1` through `node5`. Each node receives the same ring membership and all peer URLs, but a
-distinct `nodeId`; internal peer traffic uses the Compose service DNS names. Stop or restart an
-individual node with `docker compose stop node3` or `docker compose start node3`.
+The `distributed-store` Service exposes the public API at `http://localhost:8080` and
+round-robins requests to `node1` through `node5`. Each node receives the same ring membership and
+all peer URLs, but a distinct `nodeId`; internal peer traffic uses Kubernetes Service DNS names.
+Simulate a node failure or recovery with `kubectl scale deployment node3 --replicas=0` or
+`kubectl scale deployment node3 --replicas=1`.
 
 The monolith runs as one container on the same host and resources budget for comparison.
 
@@ -170,7 +174,7 @@ Use the same load generator (e.g. k6 or wrk), key distribution, and value sizes 
 
 - Extra network hops and quorum waits increase per-request latency versus the monolith, but removing the single point of failure improves availability.
 - LWW can lose concurrent updates; no anti-entropy; static membership; in-memory data only.
-- Single-host Docker testing limits realistic network and scalability conclusions.
+- Single-host Kubernetes testing limits realistic network and scalability conclusions.
 
 ## 15. Future Improvements
 
