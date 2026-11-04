@@ -4,8 +4,10 @@ import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentMap;
 import java.util.concurrent.atomic.AtomicLong;
 
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 
+@Slf4j
 @Service
 public class KeyValueStore {
 
@@ -36,8 +38,14 @@ public class KeyValueStore {
 		observeTimestamp(key, timestamp);
 
 		final VersionedValue replica = new VersionedValue(value, timestamp, origin);
-		values.compute(key, (ignored, current) ->
-				current == null || replica.isNewerThan(current) ? replica : current);
+		values.compute(key, (ignored, current) -> {
+			if (current == null || replica.isNewerThan(current)) {
+				return replica;
+			}
+			log.debug("Skipping stale replica write for key {} with timestamp {} from {}.",
+					key, timestamp, origin);
+			return current;
+		});
 	}
 
 	public long nextTimestamp(final String key) {
