@@ -7,8 +7,8 @@ import java.util.concurrent.TimeUnit;
 
 import edu.uw.tcss5622.distributed_store.api.KeyValueResponse;
 import edu.uw.tcss5622.distributed_store.cluster.ClusterProperties;
+import edu.uw.tcss5622.distributed_store.cluster.ClusterTopology;
 import edu.uw.tcss5622.distributed_store.cluster.PeerClient;
-import edu.uw.tcss5622.distributed_store.ring.ConsistentHashRing;
 import edu.uw.tcss5622.distributed_store.store.KeyValueStore;
 import edu.uw.tcss5622.distributed_store.store.VersionedValue;
 import lombok.extern.slf4j.Slf4j;
@@ -21,10 +21,10 @@ public class PutCoordinator extends PrimaryNodeCoordinator {
 	public PutCoordinator(
 			final KeyValueStore store,
 			final ClusterProperties properties,
-			final ConsistentHashRing ring,
+			final ClusterTopology topology,
 			final PeerClient peerClient,
 			final java.util.concurrent.ExecutorService executor) {
-		super(store, properties, ring, peerClient, executor);
+		super(store, properties, topology, peerClient, executor);
 	}
 
 	public KeyValueResponse put(final String key, final String value) {

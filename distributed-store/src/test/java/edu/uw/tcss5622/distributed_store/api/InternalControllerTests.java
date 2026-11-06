@@ -1,5 +1,9 @@
 package edu.uw.tcss5622.distributed_store.api;
 
+import edu.uw.tcss5622.distributed_store.cluster.ClusterMembership;
+import edu.uw.tcss5622.distributed_store.cluster.ClusterProperties;
+import edu.uw.tcss5622.distributed_store.cluster.ClusterTopology;
+import edu.uw.tcss5622.distributed_store.ring.Md5HashFunction;
 import edu.uw.tcss5622.distributed_store.store.KeyValueStore;
 import org.junit.jupiter.api.Test;
 import org.springframework.http.MediaType;
@@ -8,6 +12,7 @@ import org.springframework.test.web.servlet.setup.MockMvcBuilders;
 
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.put;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.content;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
@@ -15,7 +20,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 class InternalControllerTests {
 
 	private final MockMvc mockMvc = MockMvcBuilders
-			.standaloneSetup(new InternalController(new KeyValueStore()))
+			.standaloneSetup(new InternalController(new KeyValueStore(), controlPlane()))
 			.setControllerAdvice(new ApiExceptionHandler())
 			.build();
 
@@ -68,6 +73,17 @@ class InternalControllerTests {
 				.andExpect(jsonPath("$.error").value("Timestamp must be provided."));
 	}
 
+	@Test
+	void acceptsJoinsOnAnyNode() throws Exception {
+		mockMvc.perform(post("/internal/cluster/join")
+				.contentType(MediaType.APPLICATION_JSON)
+				.content("""
+						{"nodeId":"node2","url":"http://node2:8080","incarnation":1}
+						"""))
+				.andExpect(status().isOk())
+				.andExpect(jsonPath("$.members.length()").value(2));
+	}
+
 	private void putReplica(final String value, final long timestamp, final String origin) throws Exception {
 		mockMvc.perform(put("/internal/kv/greeting")
 				.contentType(MediaType.APPLICATION_JSON)
@@ -75,5 +91,16 @@ class InternalControllerTests {
 						{"value":"%s","timestamp":%d,"origin":"%s"}
 						""".formatted(value, timestamp, origin)))
 				.andExpect(status().isOk());
+	}
+
+	private static ClusterMembership controlPlane() {
+		final ClusterProperties properties = new ClusterProperties();
+		properties.setNodeId("node1");
+		properties.getReplication().setN(1);
+		properties.getReplication().setW(1);
+		properties.getReplication().setR(1);
+		properties.getMembership().setSelfUrl("http://node1:8080");
+		final ClusterTopology topology = new ClusterTopology(properties, new Md5HashFunction());
+		return new ClusterMembership(properties, topology);
 	}
 }

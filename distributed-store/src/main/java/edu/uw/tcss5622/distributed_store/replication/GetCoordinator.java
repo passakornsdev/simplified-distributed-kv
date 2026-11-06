@@ -10,8 +10,8 @@ import java.util.concurrent.TimeUnit;
 
 import edu.uw.tcss5622.distributed_store.api.KeyValueResponse;
 import edu.uw.tcss5622.distributed_store.cluster.ClusterProperties;
+import edu.uw.tcss5622.distributed_store.cluster.ClusterTopology;
 import edu.uw.tcss5622.distributed_store.cluster.PeerClient;
-import edu.uw.tcss5622.distributed_store.ring.ConsistentHashRing;
 import edu.uw.tcss5622.distributed_store.store.KeyValueStore;
 import edu.uw.tcss5622.distributed_store.store.KeyNotFoundException;
 import edu.uw.tcss5622.distributed_store.store.VersionedValue;
@@ -25,10 +25,10 @@ public class GetCoordinator extends PrimaryNodeCoordinator {
     public GetCoordinator(
             final KeyValueStore store,
             final ClusterProperties properties,
-            final ConsistentHashRing ring,
+            final ClusterTopology topology,
             final PeerClient peerClient,
             final java.util.concurrent.ExecutorService executor) {
-        super(store, properties, ring, peerClient, executor);
+        super(store, properties, topology, peerClient, executor);
     }
 
     public KeyValueResponse get(final String key) {

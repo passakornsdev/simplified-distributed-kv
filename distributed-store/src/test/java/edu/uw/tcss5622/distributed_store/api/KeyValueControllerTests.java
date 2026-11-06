@@ -6,6 +6,7 @@ import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 
 import edu.uw.tcss5622.distributed_store.cluster.ClusterProperties;
+import edu.uw.tcss5622.distributed_store.cluster.ClusterTopology;
 import edu.uw.tcss5622.distributed_store.cluster.PeerClient;
 import edu.uw.tcss5622.distributed_store.ring.ConsistentHashRing;
 import edu.uw.tcss5622.distributed_store.ring.Md5HashFunction;
@@ -168,14 +169,20 @@ class KeyValueControllerTests {
 			final int readQuorum) {
 		final ClusterProperties properties = new ClusterProperties();
 		properties.setNodeId("node1");
-		properties.getRing().setNodeIds(nodeIds);
+		properties.getMembership().setSelfUrl("http://node1:8080");
 		properties.getReplication().setN(replicationFactor);
 		properties.getReplication().setW(writeQuorum);
 		properties.getReplication().setR(readQuorum);
+		final ClusterTopology topology = new ClusterTopology(properties, new Md5HashFunction());
+		topology.merge(new edu.uw.tcss5622.distributed_store.cluster.ClusterConfig(nodeIds.stream()
+				.filter(nodeId -> !nodeId.equals("node1"))
+				.map(nodeId -> new edu.uw.tcss5622.distributed_store.cluster.ClusterMember(
+						nodeId, "http://" + nodeId, 1))
+				.toList()));
 		return MockMvcBuilders
 				.standaloneSetup(new KeyValueController(
-						new GetCoordinator(store, properties, ring, peerClient, executor),
-						new PutCoordinator(store, properties, ring, peerClient, executor)))
+						new GetCoordinator(store, properties, topology, peerClient, executor),
+						new PutCoordinator(store, properties, topology, peerClient, executor)))
 				.setControllerAdvice(new ApiExceptionHandler())
 				.build();
 	}

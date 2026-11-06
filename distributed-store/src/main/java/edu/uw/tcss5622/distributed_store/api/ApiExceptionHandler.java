@@ -1,6 +1,7 @@
 package edu.uw.tcss5622.distributed_store.api;
 
 import edu.uw.tcss5622.distributed_store.cluster.PeerConfigurationException;
+import edu.uw.tcss5622.distributed_store.cluster.ClusterConfigException;
 import edu.uw.tcss5622.distributed_store.cluster.PeerRequestException;
 import edu.uw.tcss5622.distributed_store.cluster.PeerUnavailableException;
 import edu.uw.tcss5622.distributed_store.replication.QuorumUnavailableException;
@@ -60,6 +61,12 @@ public class ApiExceptionHandler {
 	public ResponseEntity<ErrorResponse> handlePeerConfiguration(final PeerConfigurationException exception) {
 		log.debug("Peer configuration is invalid.", exception);
 		return error(HttpStatus.INTERNAL_SERVER_ERROR, exception.getMessage());
+	}
+
+	@ExceptionHandler(ClusterConfigException.class)
+	public ResponseEntity<ErrorResponse> handleClusterConfiguration(final ClusterConfigException exception) {
+		log.debug("Cluster configuration was rejected.", exception);
+		return error(HttpStatus.CONFLICT, exception.getMessage());
 	}
 
 	private ResponseEntity<ErrorResponse> error(final HttpStatus status, final String message) {

@@ -8,4 +8,6 @@ public interface PeerClient {
 
 	Optional<VersionedValue> getReplica(String nodeId, String key);
 	void putReplica(String nodeId, String key, VersionedValue value);
+	ClusterConfig join(String seedUrl, ClusterMember member);
+	void gossip(String nodeId, ClusterConfig configuration);
 }

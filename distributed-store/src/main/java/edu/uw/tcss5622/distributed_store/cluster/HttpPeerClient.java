@@ -19,11 +19,11 @@ import org.springframework.web.util.UriComponentsBuilder;
 @Service
 public class HttpPeerClient implements PeerClient {
 
-	private final ClusterProperties properties;
+	private final ClusterTopology topology;
 	private final RestClient client;
 
-	public HttpPeerClient(final ClusterProperties properties) {
-		this.properties = properties;
+	public HttpPeerClient(final ClusterProperties properties, final ClusterTopology topology) {
+		this.topology = topology;
 		final SimpleClientHttpRequestFactory requestFactory = new SimpleClientHttpRequestFactory();
 		final Duration timeout = Duration.ofMillis(properties.getClient().getTimeoutMs());
 		requestFactory.setConnectTimeout(timeout);
@@ -64,6 +64,37 @@ public class HttpPeerClient implements PeerClient {
 				.toBodilessEntity());
 	}
 
+	@Override
+	public ClusterConfig join(final String seedUrl, final ClusterMember member) {
+		try {
+			final ClusterConfig configuration = client.post()
+					.uri(UriComponentsBuilder.fromUriString(seedUrl)
+							.pathSegment("internal", "cluster", "join")
+							.build()
+							.toUri())
+					.contentType(MediaType.APPLICATION_JSON)
+					.body(member)
+					.retrieve()
+					.body(ClusterConfig.class);
+			if (configuration == null) {
+				throw new ClusterConfigException("Seed did not return membership.");
+			}
+			return configuration;
+		} catch (final RestClientException exception) {
+			throw new PeerUnavailableException(seedUrl, exception);
+		}
+	}
+
+	@Override
+	public void gossip(final String nodeId, final ClusterConfig configuration) {
+		request(nodeId, () -> client.put()
+				.uri(uri(nodeId, "internal", "cluster", "gossip"))
+				.contentType(MediaType.APPLICATION_JSON)
+				.body(configuration)
+				.retrieve()
+				.toBodilessEntity());
+	}
+
 	private <T> T request(
 			final String nodeId,
 			final PeerRequest<T> request) {
@@ -87,7 +118,7 @@ public class HttpPeerClient implements PeerClient {
 	}
 
 	private URI uri(final String nodeId, final String... pathSegments) {
-		final String baseUrl = properties.getPeers().get(nodeId);
+		final String baseUrl = topology.snapshot().peerUrls().get(nodeId);
 		if (baseUrl == null) {
 			throw new PeerConfigurationException(nodeId);
 		}

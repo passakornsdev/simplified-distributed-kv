@@ -19,10 +19,13 @@ spec:
           image: distributed-store:latest
           imagePullPolicy: IfNotPresent
           env:
-            - name: POD_IP
+            - name: POD_NAME
               valueFrom:
                 fieldRef:
-                  fieldPath: status.podIP
+                  fieldPath: metadata.name
+            - name: SPRING_APPLICATION_JSON
+              value: >-
+                {"kv":{"node-id":"${POD_NAME}","membership":{"self-url":"http://${POD_NAME}.distributed-store:8080","seed-urls":["http://distributed-store-0.distributed-store:8080","http://distributed-store-1.distributed-store:8080","http://distributed-store-2.distributed-store:8080"]}}}
           ports:
             - containerPort: 8080
           resources:

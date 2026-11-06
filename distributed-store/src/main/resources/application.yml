@@ -5,16 +5,13 @@ spring:
     active: ${env:local}
 
 kv:
-  node-id: ${nodeId:node1}
-  peers:
-    node1: ${node1Url:http://node1:8080}
-    node2: ${node2Url:http://node2:8080}
-    node3: ${node3Url:http://node3:8080}
-    node4: ${node4Url:http://node4:8080}
-    node5: ${node5Url:http://node5:8080}
+  node-id: ${nodeId:distributed-store-0}
   ring:
-    node-ids: ${nodeList:node1,node2,node3,node4,node5}
     virtual-nodes: 128
+  membership:
+    self-url: ${selfUrl:http://distributed-store-0.distributed-store:8080}
+    seed-urls: ${seedUrls:}
+    gossip-interval-ms: 5000
   replication:
     n: 3
     w: 2

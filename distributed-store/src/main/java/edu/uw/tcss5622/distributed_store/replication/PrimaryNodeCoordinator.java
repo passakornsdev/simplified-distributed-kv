@@ -7,6 +7,7 @@ import java.util.concurrent.Future;
 import java.util.concurrent.TimeUnit;
 
 import edu.uw.tcss5622.distributed_store.cluster.ClusterProperties;
+import edu.uw.tcss5622.distributed_store.cluster.ClusterTopology;
 import edu.uw.tcss5622.distributed_store.cluster.PeerClient;
 import edu.uw.tcss5622.distributed_store.ring.ConsistentHashRing;
 import edu.uw.tcss5622.distributed_store.store.KeyValueStore;
@@ -18,22 +19,29 @@ abstract class PrimaryNodeCoordinator {
 	protected final ClusterProperties properties;
 	protected final ExecutorService executor;
 
-	private final ConsistentHashRing ring;
+	private final ClusterTopology topology;
 
 	PrimaryNodeCoordinator(
 			final KeyValueStore store,
 			final ClusterProperties properties,
-			final ConsistentHashRing ring,
+			final ClusterTopology topology,
 			final PeerClient peerClient,
 			final ExecutorService executor) {
 		this.store = store;
 		this.properties = properties;
-		this.ring = ring;
+		this.topology = topology;
 		this.peerClient = peerClient;
 		this.executor = executor;
 	}
 
 	protected List<String> replicaNodeIds(final String key) {
+		final ConsistentHashRing ring = topology.snapshot().ring();
+		if (ring == null) {
+			throw new QuorumUnavailableException(
+					"membership",
+					properties.getReplication().getN(),
+					topology.snapshot().configuration().members().size());
+		}
 		return ring.preferenceList(key, properties.getReplication().getN());
 	}
 

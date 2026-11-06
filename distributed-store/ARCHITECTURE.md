@@ -61,9 +61,11 @@ Used only between nodes (not exposed through the load balancer).
 
 | Endpoint | Purpose | Body / Response |
 | --- | --- | --- |
-| `PUT /internal/kv/{key}` | Store a replica | `{"value":"...","timestamp":<epochMillis>,"origin":"nodeId"}` -> `200` |
+| `PUT /internal/kv/{key}` | Store a replica | `{"value":"...","timestamp":<logicalTimestamp>,"origin":"nodeId"}` -> `200` |
 | `GET /internal/kv/{key}` | Read a replica | `200` `{"value","timestamp"}` or `404` |
 | `GET /internal/health` | Liveness probe | `200` |
+| `POST /internal/cluster/join` | Add a member through any seed | `{"nodeId","url","incarnation"}` -> membership view |
+| `PUT /internal/cluster/gossip` | Merge a peer membership view | `{"members":[...]}` -> `200` |
 
 A replica applies a write only if its timestamp is newer than the stored one (ties broken by `origin` id).
 
@@ -73,7 +75,8 @@ A replica applies a write only if its timestamp is newer than the stored one (ti
 - Each physical node owns **V virtual nodes** (default 128) at positions `hash(nodeId + "#" + i)`, for even load.
 - A key's coordinator-independent **preference list** is the first N *distinct physical* nodes found
   walking clockwise from `hash(key)`.
-- Membership is static (config), so the ring is built once at startup and is identical on every node.
+- Nodes join through any configured seed, then periodically gossip their membership views. A node rebuilds
+  its ring whenever the merged view has at least N members.
 
 ## 7. Replication and Quorums
 
@@ -97,7 +100,8 @@ When a replica receives a write, it advances that key's logical clock to `max(lo
 
 ## 8. Failure Detection and Handling
 
-- Static node list; no gossip.
+- No failure detector is implemented yet. Nodes periodically gossip joins but do not mark unavailable
+  members suspect or dead.
 - Failure detection is timeout-based: a failed or slow replica call counts as a missing ack. Optionally, a node
   marks a peer *suspect* after K consecutive failures and skips it for a cool-down period, with `/internal/health`
   probes to restore it.
@@ -115,9 +119,10 @@ mirroring the monolith's storage lifecycle so comparisons isolate distribution e
 
 | Property | Default | Meaning |
 | --- | --- | --- |
-| `kv.node-id` | required | This node's ID; it must be in `kv.ring.node-ids` |
-| `kv.ring.node-ids` | required | Complete static list of physical node IDs |
-| `kv.peers.<node-id>` | required for remote nodes | Base HTTP URL for each non-local ring node |
+| `kv.node-id` | required | This node's ID |
+| `kv.membership.self-url` | required | This node's externally reachable HTTP URL |
+| `kv.membership.seed-urls` | empty | Seed URLs used to join the cluster |
+| `kv.membership.gossip-interval-ms` | 1000 | Delay between membership gossip rounds |
 | `kv.replication.n` / `w` / `r` | 3 / 2 / 2 | Replication factor and quorums |
 | `kv.ring.virtual-nodes` | 128 | Virtual nodes per physical node |
 | `kv.client.timeout-ms` | 500 | Per-replica call timeout |
@@ -141,7 +146,7 @@ edu.uw.tcss5622.distributed_store
 ## 12. Deployment
 
 Build the application image and make `distributed-store:latest` available to the Kubernetes
-cluster. Then, from `distributed-store`, deploy the five-node cluster and public Service:
+cluster. Then, from `distributed-store`, deploy five application Pods behind one Service:
 
 ```bash
 docker build -t distributed-store:latest .
@@ -149,11 +154,10 @@ kubectl apply -f k8s/distributed-store.yaml
 kubectl port-forward service/distributed-store 8080:8080
 ```
 
-The `distributed-store` Service exposes the public API at `http://localhost:8080` and
-round-robins requests to `node1` through `node5`. Each node receives the same ring membership and
-all peer URLs, but a distinct `nodeId`; internal peer traffic uses Kubernetes Service DNS names.
-Simulate a node failure or recovery with `kubectl scale deployment node3 --replicas=0` or
-`kubectl scale deployment node3 --replicas=1`.
+The headless `distributed-store` Service gives each StatefulSet Pod a stable address, such as
+`distributed-store-0.distributed-store`. Each Pod uses that address as its membership URL and
+uses pods `0`, `1`, and `2` as initial seeds; no node has special control-plane authority. Scale
+the cluster with `kubectl scale statefulset distributed-store --replicas=4`.
 
 The monolith runs as one container on the same host and resources budget for comparison.
 
@@ -173,14 +177,12 @@ Use the same load generator (e.g. k6 or wrk), key distribution, and value sizes 
 ## 14. Trade-offs and Limitations
 
 - Extra network hops and quorum waits increase per-request latency versus the monolith, but removing the single point of failure improves availability.
-- LWW can lose concurrent updates; no anti-entropy; static membership; in-memory data only.
+- LWW can lose concurrent updates; no anti-entropy, failure detection, or replica handoff; in-memory data only.
 - Single-host Kubernetes testing limits realistic network and scalability conclusions.
 
 ## 15. Future Improvements
 
-- **Dynamic cluster scaling:** Replace the static peer list with service discovery or gossip-based
-  membership. Version membership views so every coordinator computes the same ring, and rebalance
-  affected key ranges when nodes join or leave. During a ring transition, retain old replicas until
+- **Dynamic cluster scaling:** Rebalance affected key ranges when nodes join or leave. During a ring transition, retain old replicas until
   data transfer is verified and use read repair or anti-entropy to converge replicas. Keep `N`, `W`,
   and `R` cluster-wide so physical node count can grow without changing the quorum policy.
 

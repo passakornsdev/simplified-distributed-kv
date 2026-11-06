@@ -19,6 +19,7 @@ public class ClusterProperties {
 	private ReplicationProperties replication = new ReplicationProperties();
 	private ClientProperties client = new ClientProperties();
 	private ReadRepairProperties readRepair = new ReadRepairProperties();
+	private MembershipProperties membership = new MembershipProperties();
 
 	public Map<String, String> getPeers() {
 		return Map.copyOf(peers);
@@ -62,5 +63,13 @@ public class ClusterProperties {
 	@Getter
 	public static class ReadRepairProperties {
 		private boolean enabled = true;
+	}
+
+	@Setter
+	@Getter
+	public static class MembershipProperties {
+		private String selfUrl;
+		private List<String> seedUrls = new ArrayList<>();
+		private long gossipIntervalMs = 1_000;
 	}
 }
