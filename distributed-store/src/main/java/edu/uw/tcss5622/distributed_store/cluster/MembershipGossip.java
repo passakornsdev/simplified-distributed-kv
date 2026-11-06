@@ -4,8 +4,10 @@ import org.springframework.boot.context.event.ApplicationReadyEvent;
 import org.springframework.context.event.EventListener;
 import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Service;
+import lombok.extern.slf4j.Slf4j;
 
 @Service
+@Slf4j
 public class MembershipGossip {
 
 	private final ClusterProperties properties;
@@ -25,10 +27,12 @@ public class MembershipGossip {
 	void joinSeeds() {
 		for (final String seedUrl : properties.getMembership().getSeedUrls()) {
 			try {
+				log.debug("Joining cluster through seed {}.", seedUrl);
 				membership.merge(peerClient.join(seedUrl, membership.localMember()));
+				log.debug("Joined cluster through seed {}.", seedUrl);
 				return;
 			} catch (final RuntimeException exception) {
-				// Another seed may be available; periodic gossip will retry known peers.
+				log.debug("Could not join cluster through seed {}.", seedUrl, exception);
 			}
 		}
 	}
@@ -42,9 +46,11 @@ public class MembershipGossip {
 		for (final ClusterMember member : configuration.members()) {
 			if (!member.nodeId().equals(properties.getNodeId())) {
 				try {
+					log.debug("Gossiping membership with {} members to node {}.",
+							configuration.members().size(), member.nodeId());
 					peerClient.gossip(member.nodeId(), configuration);
 				} catch (final RuntimeException exception) {
-					// Failure detection is intentionally outside join-and-gossip scope.
+					log.debug("Could not gossip membership to node {}.", member.nodeId(), exception);
 				}
 			}
 		}
